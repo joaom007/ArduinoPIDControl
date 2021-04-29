@@ -5,8 +5,52 @@
  *
  * Created:   qua abr 14 2021
  * Processor: ATmega328P (Arduino Uno)
- * Autor: João Marcos
+ * Autor: João Marcos, 
+ * github: https://github.com/joaom007
+ * linkedin: https://www.linkedin.com/in/joaomarcos17/
  */
+ 
+//Debugger brincando com ideias: https://www.youtube.com/watch?v=V41FtmNrNyk
+#define pinBotaoDebug 12
+#define habilitaDebugSerial true //define se envia informações do funcionamento para o monitor serial. "true" envia e "false" não envia. Utilizado apenas para identificar problemas de funcionamento atraves do monitor serial do IDE Arduino. Em situações normais, definir este parametro como "false". Quando usar o monitor, ele deve ser configurado para a velocidade de 115200.
+
+#if habilitaDebugSerial == true
+void debug(
+  int pontoParada, String nomeVariavel, String valorVariavel, int tempoParada = -1) {   //TempoParada faz delay. Com -1, para até porta 13 mudar de nível
+   
+  Serial.print("(");
+  Serial.print(pontoParada);
+  Serial.print(") ");
+
+  Serial.print(nomeVariavel);  
+  Serial.print(":");
+  Serial.print(valorVariavel);    
+  Serial.println();
+
+  if (tempoParada == -1) {
+
+     static bool estadoBotaoAnt = digitalRead(pinBotaoDebug);
+     static unsigned long delayDebounce;
+     bool estadoBotao;
+     bool aguarda = true;
+     while (aguarda) {
+       estadoBotao = digitalRead(pinBotaoDebug);
+       if ( (estadoBotao != estadoBotaoAnt) && !estadoBotao ) {
+          if ((millis() - delayDebounce) > 100) {
+             aguarda = false;
+             delayDebounce = millis();
+          }
+       } else if (estadoBotao != estadoBotaoAnt) {
+         delayDebounce = millis(); 
+       }
+       estadoBotaoAnt = estadoBotao; 
+     } 
+  } else if (tempoParada > 0) {
+     delay(tempoParada);
+  }
+}
+#endif
+
 
 //Incluindo biblioteca de comunicação Serial Modbus
 #include <Modbusino.h> 
@@ -16,6 +60,12 @@ ModbusinoSlave modbusino_slave(1);
 
 //Alocando 20 variáveis para comunicação Modbus
 uint16_t tab_reg[20];
+
+// Configuração de pilhas
+#define STACK 2       // constante de quantas pilhas vou usar (min 2)
+#define MAXPILHA 3    // constante de quantos elementos na pilha
+int Topo[STACK];      // ponteiro das pilhas Topo[0], Topo[1] e Topo[2]
+float Pilha[MAXPILHA][STACK];   // é a matriz Pilha
 
 // Mapeamento de portas
 #define LSL1 17       // LSL1 será chave de level baixo 1
@@ -64,6 +114,20 @@ int mode = 0;
 // Ajustes iniciais
 void setup()
 {
+  //Debugger
+  #if habilitaDebugSerial == true
+      Serial.begin(115200);
+      pinMode(pinBotaoDebug, INPUT_PULLUP); 
+  #endif
+  
+  // Inicia pilha 1, vazia, retorno 1 = criada, retorno 0 = falha na criação
+    // Pilha vazia, o ponteiro é igual a -1
+  //Serial.begin(9600);
+  //if(InicPilha(1))
+    //Serial.println("Pilha: 1 vazia criada com sucesso");
+  //else
+    //Serial.println("Falha na criação da pilha: 1");
+  
   //Definindo velocidade de comunicação em 9600 bauds (max 115200)
   modbusino_slave.setup(9600);
   
@@ -113,6 +177,10 @@ void setup()
 // Processo do Arduíno
 void loop()
 {
+  #if habilitaDebugSerial == true
+      debug(1, "variavel1", String(variavel1), 100);
+  #endif
+  
   triggerPulse();                //Aciona função do trigger do módulo ultrassônico  
   pulse = pulseIn(ECHO, HIGH, 200000);   //Medindo o tempo de ECHO em nível alto
   distance = pulse/58;           //converte resultado da distância em centímetros
@@ -236,9 +304,26 @@ void loop()
 
   
 }
+
+//Função para gerar pulso de trigger
 void triggerPulse()
 {
   digitalWrite(TRIGGER, HIGH);  //Pulso de trigger em nível alto
   delayMicroseconds(10);        //tempo de 10 micro segundos
   digitalWrite(TRIGGER, LOW);   //Pulso de trigger em nível baixo
+}
+
+// Função para iniciar a pilha s
+  // Se InicPilha for 0, indica falha na inicialização da pilha
+int InicPilha(int s)
+{
+   if ((s<0)|(s>STACK-1))
+   {
+      return 0;
+   }
+   else
+   {
+      Topo[s] = -1;
+      return 1;
+   }
 }
