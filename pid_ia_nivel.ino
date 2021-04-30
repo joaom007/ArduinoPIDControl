@@ -11,19 +11,19 @@
  */
  
 //Debugger brincando com ideias: https://www.youtube.com/watch?v=V41FtmNrNyk
-#define pinBotaoDebug 12
+#define pinBotaoDebug 18
 #define habilitaDebugSerial true //define se envia informações do funcionamento para o monitor serial. "true" envia e "false" não envia. Utilizado apenas para identificar problemas de funcionamento atraves do monitor serial do IDE Arduino. Em situações normais, definir este parametro como "false". Quando usar o monitor, ele deve ser configurado para a velocidade de 115200.
 
 #if habilitaDebugSerial == true
 void debug(
   int pontoParada, String nomeVariavel, String valorVariavel, int tempoParada = -1) {   //TempoParada faz delay. Com -1, para até porta 13 mudar de nível
-   
+  
   Serial.print("(");
   Serial.print(pontoParada);
   Serial.print(") ");
 
   Serial.print(nomeVariavel);  
-  Serial.print(":");
+  Serial.print(": ");
   Serial.print(valorVariavel);    
   Serial.println();
 
@@ -62,10 +62,10 @@ ModbusinoSlave modbusino_slave(1);
 uint16_t tab_reg[20];
 
 // Configuração de pilhas
-#define STACK 2       // constante de quantas pilhas vou usar (min 2)
-#define MAXPILHA 3    // constante de quantos elementos na pilha
-int Topo[STACK];      // ponteiro das pilhas Topo[0], Topo[1] e Topo[2]
-float Pilha[MAXPILHA][STACK];   // é a matriz Pilha
+#define STACK 1       // constante de quantas pilhas vou usar pilha 1 = posição 0
+#define MAXSTACK 3    // constante de quantos elementos na pilha
+int top[STACK];       // ponteiro das pilhas top[0], top[1] e top[2]...
+float stack[MAXSTACK][STACK];   // é a matriz Pilha
 
 // Mapeamento de portas
 #define LSL1 17       // LSL1 será chave de level baixo 1
@@ -122,11 +122,8 @@ void setup()
   
   // Inicia pilha 1, vazia, retorno 1 = criada, retorno 0 = falha na criação
     // Pilha vazia, o ponteiro é igual a -1
-  //Serial.begin(9600);
-  //if(InicPilha(1))
-    //Serial.println("Pilha: 1 vazia criada com sucesso");
-  //else
-    //Serial.println("Falha na criação da pilha: 1");
+  StackInit(0);  
+    
   
   //Definindo velocidade de comunicação em 9600 bauds (max 115200)
   modbusino_slave.setup(9600);
@@ -177,14 +174,15 @@ void setup()
 // Processo do Arduíno
 void loop()
 {
-  #if habilitaDebugSerial == true
-      debug(1, "variavel1", String(variavel1), 100);
-  #endif
-  
+    
   triggerPulse();                //Aciona função do trigger do módulo ultrassônico  
   pulse = pulseIn(ECHO, HIGH, 200000);   //Medindo o tempo de ECHO em nível alto
   distance = pulse/58;           //converte resultado da distância em centímetros
 
+  #if habilitaDebugSerial == true
+      debug(1, "variavel1", String());
+  #endif
+  
   //converte distância em nível no tanque
   pv = 35-distance;
 
@@ -192,17 +190,7 @@ void loop()
   erro = sp-pv;
   
   //Atribuindo variáveis com tags de comunicação
-    //Velocidades das bombas 0 à 1023
-    /* convertendo para escala de 0 à 100
-          1023 -- 100
-             x -- 1
-             x = 10.23 */
-  float ar_pwm1 = analogRead(PWM1)/10.23;
-  float ar_pwm2 = analogRead(PWM2)/10.23;
-
-  //tab_reg[0] = ar_pwm1;
-  //tab_reg[1] = ar_pwm2;
-  
+      
   //Medição do nível sensor ultrassônico
   tab_reg[2] = pv;
   
@@ -274,7 +262,7 @@ void loop()
   //Modo Automático (PID) selecionado
   else if (mode == 2)
   {
-
+    
     
   }
   //Modo Inteligência Artificial (python) selecionado 
@@ -314,8 +302,8 @@ void triggerPulse()
 }
 
 // Função para iniciar a pilha s
-  // Se InicPilha for 0, indica falha na inicialização da pilha
-int InicPilha(int s)
+  // Se StackInit for 0, indica falha na inicialização da pilha
+int StackInit(int s)
 {
    if ((s<0)|(s>STACK-1))
    {
@@ -323,7 +311,97 @@ int InicPilha(int s)
    }
    else
    {
-      Topo[s] = -1;
+      top[s] = -1;
       return 1;
+   }
+}
+
+//Função para verificar se a pilha está vazia, vazia = 1, não vazia = 0
+int EmptyStack(int s)
+{
+   //Verificar se o valor de s é válido
+   if ((s<0)|(s>STACK-1))
+   {    
+      return 0;
+   }
+   else
+   {
+      //Verificar se pilha está vazia
+      if (top[s]==-1)
+      {
+        //a pilha está vazia
+        return 1;
+      }
+      else
+      {
+        //a pilha não está vazia
+        return 0;
+      }
+   }
+}
+
+//Função para verificar se a pilha está cheia, cheia = 1, não cheia = 0
+int FullStack(int s)
+{
+   //Verificar se o valor de s é válido
+   if ((s<0)|(s>STACK-1))
+   {    
+     return 0;
+   }
+   else
+   {
+     //Verificar se pilha está cheia
+      if (top[s]==MAXSTACK-1)
+      {
+        //Pilha está cheia
+        return 1;
+      }
+      else
+      {
+        //Pilha não está cheia
+        return 0;
+      }
+   }
+}
+
+//Função para empilhar elementos na pilha, empilhado = 1, não empilhado = 0 
+  //Empilha na pilha "s" o valor "x" flutuante
+int Push(int s, float x)
+{
+   //chama função para validar o valor de s
+   int full=FullStack(s);
+   if ((s<0)|(s>STACK-1)|(full==1))
+   {
+     //não posso colocar elemento na pilha
+     return 0;
+   }
+   else
+   {
+     //posso empilhar: mudar o ponteiro (cria posição)
+     top[s]=top[s] + 1;
+     
+     //Empilhar valor x na nova posição
+     stack[top[s]][s] = x;
+     
+     return 1;
+   }
+}
+
+// Função para tirar elementos da pilha, desempilhado = valor no topo da pilha, não desempilhado = 0
+int Pop(int s)
+{
+   //chama função para validar o valor de s
+   int empty=EmptyStack(s);
+   if ((s<0)|(s>STACK-1)|(empty==1))
+   {
+     //não posso retirar elemento na pilha
+     return 0;
+   }
+   else
+   {
+     float unStack=stack[top[s]][s];
+     top[s]=top[s]-1;
+     return unStack;
+     
    }
 }
