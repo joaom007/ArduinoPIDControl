@@ -1,4 +1,4 @@
-# ArduinoPIDControl - Controle de PID com Arduíno
+# ArduinoPIDControl - Controle de PID com Arduíno e RNA
 
 **Trabalho de graduação apresentado à FATEC Tatuí, com tema:**
 
